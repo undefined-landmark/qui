@@ -230,14 +230,15 @@ func TestNewLoadsConfigFromFileOrDirectory(t *testing.T) {
 	}
 }
 
-func TestReadFileIfPath(t *testing.T) {
+func TestBindOrReadFromFile(t *testing.T) {
 	tests := []struct {
 		name string
 		inValue func(t *testing.T, tmpDir string) (string)
+		envSuffix string
 		expectedValue string
 	}{
 		{
-			name: "Value containing file path",
+			name: "_FILE env var with readable file",
 			// tmp file containing key
 			inValue: func(t *testing.T, tmpDir string) (string) {
 				configPath := filepath.Join(tmpDir, "key-file.txt")
@@ -245,10 +246,11 @@ func TestReadFileIfPath(t *testing.T) {
 				require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 				return configPath
 			},
+			envSuffix: "_FILE",
 			expectedValue: "key-from-file",
 		},
 		{
-			name: "Value containing unreadable file path",
+			name: "_FILE env var with unreadable file path",
 			// non readable tmp file containing key
 			inValue: func(t *testing.T, tmpDir string) (string) {
 				configPath := filepath.Join(tmpDir, "key-file.txt")
@@ -256,13 +258,15 @@ func TestReadFileIfPath(t *testing.T) {
 				require.NoError(t, os.WriteFile(configPath, []byte(content), 0o000))
 				return configPath
 			},
+			envSuffix: "_FILE",
 			expectedValue: "",
 		},
 		{
-			name: "Value not containing file path",
+			name: "No _FILE env var",
 			inValue: func(t *testing.T, tmpDir string) (string) {
 				return "key-not-from-file" 
 			},
+			envSuffix: "",
 			expectedValue: "key-not-from-file",
 		},
 	}
@@ -271,8 +275,72 @@ func TestReadFileIfPath(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			extractedValue := ReadFileIfPath(tt.inValue(t, tmpDir))
-			assert.Equal(t, tt.expectedValue, extractedValue)
+			envVar := envPrefix+"SESSION_SECRET"
+			envValue := tt.inValue(t, tmpDir)
+
+			t.Setenv(envVar+tt.envSuffix, envValue)
+			bindOrReadFromFile("sessionSecret", envVar)
+			c.viper.Unmarshal(c.Config)
+
+			assert.Equal(t, tt.expectedValue, c.someVar)
+		})
+	}
+}
+
+
+func TestBindOrReadFromFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		prepare func(t *testing.T, tmpDir string) (configPath string, envDataDir string, expectedDBPath string)
+	}{
+		{
+			name: "default_next_to_config",
+			prepare: func(t *testing.T, tmpDir string) (string, string, string) {
+				configPath := filepath.Join(tmpDir, "config.toml")
+				content := "host = \"localhost\"\nport = 8080\nsessionSecret = \"test-secret\"\n"
+				require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
+				return configPath, "", filepath.Join(tmpDir, "qui.db")
+			},
+		},
+		{
+			name: "explicit_data_dir_in_config",
+			prepare: func(t *testing.T, tmpDir string) (string, string, string) {
+				configPath := filepath.Join(tmpDir, "config.toml")
+				dataDir := filepath.Join(tmpDir, "data")
+				require.NoError(t, os.MkdirAll(dataDir, 0o755))
+				content := fmt.Sprintf("host = \"localhost\"\nport = 8080\nsessionSecret = \"test-secret\"\ndataDir = %q\n", dataDir)
+				require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
+				return configPath, "", filepath.Join(dataDir, "qui.db")
+			},
+		},
+		{
+			name: "env_var_override",
+			prepare: func(t *testing.T, tmpDir string) (string, string, string) {
+				configPath := filepath.Join(tmpDir, "config.toml")
+				configDataDir := filepath.Join(tmpDir, "config-data")
+				envDataDir := filepath.Join(tmpDir, "env-data")
+				require.NoError(t, os.MkdirAll(configDataDir, 0o755))
+				require.NoError(t, os.MkdirAll(envDataDir, 0o755))
+				content := fmt.Sprintf("host = \"localhost\"\nport = 8080\nsessionSecret = \"test-secret\"\ndataDir = %q\n", configDataDir)
+				require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
+				return configPath, envDataDir, filepath.Join(envDataDir, "qui.db")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			configPath, envValue, expectedDBPath := tt.prepare(t, tmpDir)
+			if envValue != "" {
+				t.Setenv(envPrefix+"DATA_DIR", envValue)
+			}
+
+			cfg, err := New(configPath)
+			require.NoError(t, err)
+
+			assert.Equal(t, filepath.Clean(expectedDBPath), filepath.Clean(cfg.GetDatabasePath()))
 		})
 	}
 }
