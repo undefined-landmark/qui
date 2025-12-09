@@ -257,8 +257,7 @@ func TestBindOrReadFromFile(t *testing.T) {
 	}{
 		{
 			name: "Only _FILE env var",
-			// tmp file containing key
-			envVarValue: ""
+			envVarValue: "",
 			envVarFileValue: tmpKeyFile,
 			expectedValue: "key-from-file",
 		},
@@ -270,7 +269,7 @@ func TestBindOrReadFromFile(t *testing.T) {
 		},
 		{
 			name: "_FILE and non _FILE env var",
-			envVarValue: "key-not-from-file"
+			envVarValue: "key-not-from-file",
 			envVarFileValue: tmpKeyFile,
 			expectedValue: "key-from-file",
 		},
@@ -290,13 +289,11 @@ func TestBindOrReadFromFile(t *testing.T) {
 				t.Setenv(envVar+"_FILE", envVarFilePath)
 			}
 
-			bindOrReadFromFile("sessionSecret", envVar)
-
 			configPath := genConfigFile(t, t.TempDir())
 			cfg, err := New(configPath)
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.expectedValue, cfg.Config.sessionSecret)
+			assert.Equal(t, tt.expectedValue, cfg.Config.SessionSecret)
 		})
 	}
 }

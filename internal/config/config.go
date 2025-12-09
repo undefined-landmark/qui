@@ -179,7 +179,7 @@ func (c *AppConfig) loadFromEnv() {
 	c.viper.BindEnv("host", envPrefix+"HOST")
 	c.viper.BindEnv("port", envPrefix+"PORT")
 	c.viper.BindEnv("baseUrl", envPrefix+"BASE_URL")
-	bindOrReadFromFile("sessionSecret", envPrefix+"SESSION_SECRET")
+	c.bindOrReadFromFile("sessionSecret", envPrefix+"SESSION_SECRET")
 	c.viper.BindEnv("logLevel", envPrefix+"LOG_LEVEL")
 	c.viper.BindEnv("logPath", envPrefix+"LOG_PATH")
 	c.viper.BindEnv("logMaxSize", envPrefix+"LOG_MAX_SIZE")
@@ -199,7 +199,7 @@ func (c *AppConfig) loadFromEnv() {
 	c.viper.BindEnv("oidcClientSecret", envPrefix+"OIDC_CLIENT_SECRET")
 	c.viper.BindEnv("oidcRedirectUrl", envPrefix+"OIDC_REDIRECT_URL")
 	c.viper.BindEnv("oidcDisableBuiltInLogin", envPrefix+"OIDC_DISABLE_BUILT_IN_LOGIN")
-	
+
 }
 
 func (c *AppConfig) watchConfig() {
@@ -628,13 +628,13 @@ func (c *AppConfig) GetEncryptionKey() []byte {
 // Sets viper variable if environment variable with _FILE suffix is present
 func (c *AppConfig) bindOrReadFromFile(viperVar string, envVar string) {
 	envVarFile := envVar + "_FILE"
-    if filePath := os.Getenv(envPrefix + envVarFile); filePath != "" {
-        content, err := os.ReadFile(filePath)
-        if err != nil {
-            log.Fatal().Err(err).Str("path", filePath).Msg("Could not read " + envVarFile)
-        }
-        c.viper.Set(viperVar, strings.TrimSpace(string(content)))
-    } else {
+	if filePath := os.Getenv(envVarFile); filePath != "" {
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			log.Fatal().Err(err).Str("path", filePath).Msg("Could not read " + envVarFile)
+		}
+		c.viper.Set(viperVar, strings.TrimSpace(string(content)))
+	} else {
 		c.viper.BindEnv(viperVar, envVar)
-    }
+	}
 }
